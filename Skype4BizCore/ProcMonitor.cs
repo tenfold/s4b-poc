@@ -64,8 +64,8 @@ namespace Skype4BizCore
          */
          string jbuff = "{{\"status\":\"{0}\", \"direction\":\"Inbound\", \"number\":\"{1}\"," +
             "\"extension\":\"{2}\", \"pbxCallId\":\"{3}\"}}";
-         jbuff = jbuff.xf(eventName, numIn, skypeNum, pbxID);
-         byte[] bytes = jbuff.tobytes();
+         jbuff = jbuff.xFormat(eventName, numIn, skypeNum, pbxID);
+         byte[] bytes = jbuff.xToBytes();
          string url = "https://events.qa.tenfold.com/receive/5d1cbe0ad3c02b0007ab3ba1/phone-simulator";
          WebRequest webRequest = (HttpWebRequest)WebRequest.Create(url);
          webRequest.Method = "post";
