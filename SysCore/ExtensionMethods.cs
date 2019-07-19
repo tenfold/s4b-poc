@@ -15,8 +15,7 @@ namespace SysCore
 
       public static bool xIsTel(this String str, string local = "US")
       {
-
-         return true;
+         return new Regex(@"^\+[1-9]{1}[0-9]{4,32}$").IsMatch(str);
       }
 
       public static byte[] xToBytes(this String str)

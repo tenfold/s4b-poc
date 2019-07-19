@@ -56,28 +56,38 @@ namespace Skype4BizCore
 
       public int FireEvent(string eventName, string numIn, string skypeNum, string pbxID)
       {
+
          /*
             url -H ‘Content-Type: application/json' -XPOST 
             https://events.qa.tenfold.com/receive/5d1cbe0ad3c02b0007ab3ba1/phone-simulator 
             -d ‘{"status": "Ringing","direction":"Inbound","number":"'$CALLER_PHONE'","extension":"’<SKYPE_NUMBER’>",
                   "pbxCallId":"'<UNIQUE_CALL_ID>'"}'
          */
-         string jbuff = "{{\"status\":\"{0}\", \"direction\":\"Inbound\", \"number\":\"{1}\"," +
-            "\"extension\":\"{2}\", \"pbxCallId\":\"{3}\"}}";
-         jbuff = jbuff.xFormat(eventName, numIn, skypeNum, pbxID);
-         byte[] bytes = jbuff.xToBytes();
-         string url = "https://events.qa.tenfold.com/receive/5d1cbe0ad3c02b0007ab3ba1/phone-simulator";
-         WebRequest webRequest = (HttpWebRequest)WebRequest.Create(url);
-         webRequest.Method = "post";
-         webRequest.ContentLength = bytes.LongLength;
-         webRequest.ContentType = "application/json";
-         Stream outstream = webRequest.GetRequestStream();
-         outstream.Write(bytes, 0, bytes.Length);
-         HttpWebResponse webResponse = (HttpWebResponse)webRequest.GetResponse();
-         string inbuff = new StreamReader(webResponse.GetResponseStream()).ReadToEnd();
 
+         try
+         {
+            string jbuff = "{{\"status\":\"{0}\", \"direction\":\"Inbound\", \"number\":\"{1}\"," +
+               "\"extension\":\"{2}\", \"pbxCallId\":\"{3}\"}}";
+            jbuff = jbuff.xFormat(eventName, numIn, skypeNum, pbxID);
+            byte[] bytes = jbuff.xToBytes();
+            string url = "https://events.qa.tenfold.com/receive/5d1cbe0ad3c02b0007ab3ba1/phone-simulator";
+            WebRequest webRequest = (HttpWebRequest)WebRequest.Create(url);
+            webRequest.Method = "post";
+            webRequest.ContentLength = bytes.LongLength;
+            webRequest.ContentType = "application/json";
+            Stream outstream = webRequest.GetRequestStream();
+            outstream.Write(bytes, 0, bytes.Length);
+            HttpWebResponse webResponse = (HttpWebResponse)webRequest.GetResponse();
+            string inbuff = new StreamReader(webResponse.GetResponseStream()).ReadToEnd();
+
+         }
+         catch (Exception x)
+         {
+            AppLogger.Save(x);
+         }
 
          return 0;
+
       }
    }
 }
