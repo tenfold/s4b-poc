@@ -14,6 +14,7 @@ namespace s4bPOC
       {
          ProcMonitor procMonitor = new ProcMonitor();
          procMonitor.Run();
+         procMonitor.FireEvent("someevent", "+45909000", "skypenum", "blabla");
       }
    }
 }

@@ -1,5 +1,6 @@
 ﻿
 using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,6 +8,8 @@ using System.Threading;
 using System.Net;
 using System.Web;
 using mslm = Microsoft.Lync.Model;
+/* core */
+using SysCore;
 
 
 namespace Skype4BizCore
@@ -15,7 +18,7 @@ namespace Skype4BizCore
    {
 
       private mslm.LyncClient lyncClient = null;
-      private mslm.Conversation.ConversationManager conversationManager = null;
+      //private mslm.Conversation.ConversationManager conversationManager = null;
 
       public ProcMonitor()
       {
@@ -51,21 +54,27 @@ namespace Skype4BizCore
          Console.WriteLine(e.Value);
       }
 
-      private int FireEvent(string eventName, string num, params string[] args)
+      public int FireEvent(string eventName, string num, string skypeNum, string pbxID)
       {
-         
          /*
             url -H ‘Content-Type: application/json' -XPOST 
             https://events.qa.tenfold.com/receive/5d1cbe0ad3c02b0007ab3ba1/phone-simulator 
             -d ‘{"status": "Ringing","direction":"Inbound","number":"'$CALLER_PHONE'","extension":"’<SKYPE_NUMBER’>",
                   "pbxCallId":"'<UNIQUE_CALL_ID>'"}'
-          */
+         */
+         string buff = "status={0}&direction=Inbound&number={1}&extension={2}>pbxCallId={3}"
+            .xf(eventName, num, skypeNum, pbxID);
+         byte[] bytes = buff.tobytes();
+
          string url = "https://events.qa.tenfold.com/receive/5d1cbe0ad3c02b0007ab3ba1/phone-simulator";
          WebRequest webRequest = (HttpWebRequest)WebRequest.Create(url);
          webRequest.Method = "post";
-
-         //webRequest.GetResponse();
-
+         webRequest.ContentLength = bytes.LongLength;
+         webRequest.ContentType = "application/x-www-form-urlencoded";
+         Stream outstream = webRequest.GetRequestStream();
+         outstream.Write(bytes, 0, bytes.Length);
+         HttpWebResponse webResponse = (HttpWebResponse)webRequest.GetResponse();
+         string inbuff = new StreamReader(webResponse.GetResponseStream()).ReadToEnd();
          return 0;
       }
    }
