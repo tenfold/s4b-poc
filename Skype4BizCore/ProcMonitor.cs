@@ -54,7 +54,7 @@ namespace Skype4BizCore
          Console.WriteLine(e.Value);
       }
 
-      public int FireEvent(string eventName, string num, string skypeNum, string pbxID)
+      public int FireEvent(string eventName, string numIn, string skypeNum, string pbxID)
       {
          /*
             url -H ‘Content-Type: application/json' -XPOST 
@@ -62,19 +62,21 @@ namespace Skype4BizCore
             -d ‘{"status": "Ringing","direction":"Inbound","number":"'$CALLER_PHONE'","extension":"’<SKYPE_NUMBER’>",
                   "pbxCallId":"'<UNIQUE_CALL_ID>'"}'
          */
-         string buff = "status={0}&direction=Inbound&number={1}&extension={2}>pbxCallId={3}"
-            .xf(eventName, num, skypeNum, pbxID);
-         byte[] bytes = buff.tobytes();
-
+         string jbuff = "{{\"status\":\"{0}\", \"direction\":\"Inbound\", \"number\":\"{1}\"," +
+            "\"extension\":\"{2}\", \"pbxCallId\":\"{3}\"}}";
+         jbuff = jbuff.xf(eventName, numIn, skypeNum, pbxID);
+         byte[] bytes = jbuff.tobytes();
          string url = "https://events.qa.tenfold.com/receive/5d1cbe0ad3c02b0007ab3ba1/phone-simulator";
          WebRequest webRequest = (HttpWebRequest)WebRequest.Create(url);
          webRequest.Method = "post";
          webRequest.ContentLength = bytes.LongLength;
-         webRequest.ContentType = "application/x-www-form-urlencoded";
+         webRequest.ContentType = "application/json";
          Stream outstream = webRequest.GetRequestStream();
          outstream.Write(bytes, 0, bytes.Length);
          HttpWebResponse webResponse = (HttpWebResponse)webRequest.GetResponse();
          string inbuff = new StreamReader(webResponse.GetResponseStream()).ReadToEnd();
+
+
          return 0;
       }
    }
