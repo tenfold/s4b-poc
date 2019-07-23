@@ -15,12 +15,12 @@ namespace SysCore
 
       public static bool xIsTel(this String str, string local = "US")
       {
-         return new Regex(@"^\+[1-9]{1}[0-9]{4,32}$").IsMatch(str);
+         return new Regex(@"^'\+[0-9]{4,32}'$").IsMatch(str);
       }
 
       public static byte[] xToBytes(this String str)
       {
-         return Encoding.UTF8.GetBytes(str);
+         return Encoding.ASCII.GetBytes(str);
       }
    }
 }

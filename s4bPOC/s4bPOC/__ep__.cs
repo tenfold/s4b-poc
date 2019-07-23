@@ -13,13 +13,16 @@ namespace s4bPOC
    {
       static void Main(string[] args)
       {
-         ProcMonitor procMonitor = new ProcMonitor();
+         SkypeWatcher procMonitor = new SkypeWatcher();
          procMonitor.Run();
 
-         string numIn = "+13459891212";
-         if (!numIn.xIsTel())
-            throw new Exception("BadTelNum");
-         procMonitor.FireEvent("someevent", numIn, "skypenum", "blabla");
+         string numIn = "+48883279496";
+         /*if (!numIn.xIsTel())
+            throw new Exception("BadTelNum");*/
+         string ext = "1111";
+         Guid pbxid = Guid.NewGuid();
+         procMonitor.FireInboundEvent("Ringing", numIn, ext, pbxid.ToString());
+
       }
    }
 }
