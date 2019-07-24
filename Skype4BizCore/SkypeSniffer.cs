@@ -15,28 +15,27 @@ using SysCore;
 
 namespace Skype4BizCore
 {
-   public class SkypeWatcher
+   public class SkypeSniffer
    {
 
       private mslm.LyncClient lyncClient = null;
-      //private mslm.Conversation.ConversationManager conversationManager = null;
       private string orgID = null;
       private string eventSinkUrl = null;
       private string eventTemplate = null;
       private string[] extsList = null;
+      private string configFileName = "SkypeSniffer.config";
 
 
-      public SkypeWatcher()
+      public SkypeSniffer()
       {
          this.Init();
       }
 
       private void Init()
       {
-         this.lyncClient = mslm.LyncClient.GetClient();
-         this.lyncClient.ConversationManager.ConversationAdded += this.onConversationAdded;
+         /* load config */
          ExeConfigurationFileMap dllConfiguration = new ExeConfigurationFileMap();
-         dllConfiguration.ExeConfigFilename = "SkypeWatcher.config";
+         dllConfiguration.ExeConfigFilename = this.configFileName;
          Configuration conf = ConfigurationManager.OpenMappedExeConfiguration(dllConfiguration, ConfigurationUserLevel.None);
          this.orgID = conf.AppSettings.Settings["orgID"].Value;
          this.eventSinkUrl = conf.AppSettings.Settings["eventSinkUrl"].Value;
@@ -47,7 +46,18 @@ namespace Skype4BizCore
 
       public void Run()
       {
-
+         try
+         {
+            /* attach to skype */
+            this.lyncClient = mslm.LyncClient.GetClient();
+            this.lyncClient.ConversationManager.ConversationAdded += this.onConversationAdded;
+            while (true)
+               Thread.Sleep(10);
+         }
+         catch (Exception x)
+         {
+            AppLogger.Save(x);
+         }
       }
 
       private void onConversationAdded(object sender,
@@ -85,13 +95,13 @@ namespace Skype4BizCore
             outstream.Close();
             HttpWebResponse webResponse = (HttpWebResponse)webRequest.GetResponse();
             string inbuff = new StreamReader(webResponse.GetResponseStream()).ReadToEnd();
-
          }
          catch (Exception x)
          {
             AppLogger.Save(x);
          }
 
+         /* - - */
          return 0;
 
       }
