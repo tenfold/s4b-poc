@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 /* - - */
 using SysCore;
 using Skype4BizCore;
@@ -17,6 +18,13 @@ namespace s4bPOC
 
          SkypeSniffer procMonitor = new SkypeSniffer();
          procMonitor.Run();
+
+         RestApi restApi = new RestApi(procMonitor.SkypeObject);
+         restApi.Start();
+
+
+         while (true)
+            Thread.Sleep(10);
 
          //string numIn = "+48883279496";
          /*if (!numIn.xIsTel())

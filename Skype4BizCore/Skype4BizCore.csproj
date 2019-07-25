@@ -45,6 +45,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="RestApi.cs" />
     <Compile Include="SkypeSniffer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
