@@ -16,10 +16,10 @@ namespace s4bPOC
       static void Main(string[] args)
       {
 
-         SkypeSniffer procMonitor = new SkypeSniffer();
-         procMonitor.Run();
+         SkypeSniffer skypeSniffer = new SkypeSniffer();
+         skypeSniffer.Run();
 
-         RestApi restApi = new RestApi(procMonitor.SkypeObject);
+         RestApi restApi = new RestApi(skypeSniffer);
          restApi.Start();
 
 

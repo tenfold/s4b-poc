@@ -1,6 +1,7 @@
 ﻿
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
 using System.Text;
 using System.Net;
@@ -17,10 +18,11 @@ namespace Skype4BizCore
       private HttpListener httpListener = null;
       private string httpPrefix = null;
       private mslm.LyncClient lyncClient = null;
+      private SkypeSniffer skypeSniffer = null;
 
-      public RestApi(mslm.LyncClient lyncClient)
+      public RestApi(SkypeSniffer skype)
       {
-         this.lyncClient = lyncClient;
+         this.skypeSniffer = skype;
          this.httpPrefix = "http://*:8080/";
       }
 
@@ -43,47 +45,54 @@ namespace Skype4BizCore
          string buffout = null;
          HttpListenerContext cntx = this.httpListener.EndGetContext(result);
          Console.WriteLine(" -> {0}".xFormat(cntx.Request.RawUrl));
-         switch (cntx.Request.RawUrl.Split('?')[0].Trim('/'))
+         /* */
+         if (cntx.Request.RawUrl.Contains("/act/pickup"))
          {
-            case "act/pickup":
-               buffout = this.actPickup(ref cntx);
-               break;
-            case "act/dial":
-               buffout = this.actDial(ref cntx);
-               break;
-            case "act/hangup":
-               buffout = this.actHandup(ref cntx);
-               break;
-            default:
-               break;
+            buffout = this.actPickup();
+         }
+         else if (cntx.Request.RawUrl.Contains("/act/dial"))
+         {
+            buffout = this.actDial(cntx.Request.RawUrl);
+         }
+         else if (cntx.Request.RawUrl.Contains("/act/hangup"))
+         {
+            buffout = this.actHangup();
+         }
+         else
+         {
+            buffout = "Error!!! :)";
          }
          /* - - */
+         this.PushRespBuff(buffout, ref cntx);
+      }
+
+      private string actPickup()
+      {
+         this.skypeSniffer.Pickup();
+         return "OK";
+      }
+
+      private string actDial(string rowurl)
+      {
+         string uri = rowurl.Replace("/act/dial/", "");
+         this.skypeSniffer.Dial(uri);
+         return "OK";
+      }
+
+      private string actHangup()
+      {
+         this.skypeSniffer.Hangup();
+         return "OK";
+      }
+
+      private void PushRespBuff(string buff, ref HttpListenerContext cntx)
+      {
          cntx.Response.ContentType = "text/plain";
-         byte[] bytebuff = buffout.xToBytes();
-         cntx.Response.ContentLength64 = bytebuff.LongLength;
-         cntx.Response.OutputStream.Write(bytebuff, 0, bytebuff.Length);
+         byte[] bytes = buff.xToBytes();
+         cntx.Response.ContentLength64 = bytes.LongLength;
+         cntx.Response.OutputStream.Write(bytes, 0, bytes.Length);
          cntx.Response.OutputStream.Flush();
          cntx.Response.OutputStream.Close();
-      }
-
-      private string actPickup(ref HttpListenerContext cntx)
-      {
-         //this.lyncClient.ConversationManager.Conversations.ad
-         return "OK";
-      }
-
-      private string actDial(ref HttpListenerContext cntx)
-      {
-         string num = cntx.Request.QueryString["num"];
-         Console.WriteLine("dial: {0}".xFormat(num));
-         return "OK";
-      }
-
-      private string actHandup(ref HttpListenerContext cntx)
-      {
-         if (this.lyncClient.ConversationManager.Conversations.Count == 0)
-            this.lyncClient.ConversationManager.Conversations[0].End();
-         return "OK";
       }
    }
 }
