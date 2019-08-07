@@ -14,7 +14,8 @@ using System.Runtime.InteropServices;
 using mslm = Microsoft.Lync.Model;
 /* core */
 using SysCore;
-
+using Microsoft.Lync.Model.Extensibility;
+using Microsoft.Lync.Model.Conversation;
 
 namespace Skype4BizCore
 {
@@ -35,9 +36,10 @@ namespace Skype4BizCore
       private string thisUser = null;
       private string statusFile = null;
       private string statusFileTemplate = null;
+        private IList<mslm.Conversation.Conversation> conversations = null;
 
 
-      public SkypeSniffer()
+        public SkypeSniffer()
       {
          this.Init();
       }
@@ -76,201 +78,207 @@ namespace Skype4BizCore
          }
       }
 
-      private void IncomingConversationAdded(object sender,
+
+        private void IncomingConversationAdded(object sender,
          mslm.Conversation.ConversationManagerEventArgs e)
-      {
+        {
+            var conversation = e.Conversation;
 
-         Console.WriteLine("\n\tIncomingConversationAdded...");
-         
-         /* clear event bag */
-         this.eventBag.Clear();
-         
-         /* set user name & user sip */
-         this.SetUserNameUserSIP(e.Conversation);
-         this.UpdateStatusFile(0, "n/m", "IncomingConversationAdded", "n/m");
+            Console.WriteLine("\n\tIncomingConversationAdded...");
 
-         /* monitor conv prop changes */
-         e.Conversation.PropertyChanged += this.Conversation_PropertyChanged;
-         this.ProcessConversation(e.Conversation);
+            this.SetUserNameUserSIP(e.Conversation);
 
-      }
+            this.UpdateStatusFile(0, "n/m", "IncomingConversationAdded", "n/m");
+
+            /* monitor conv prop changes */
+            e.Conversation.PropertyChanged += this.Conversation_PropertyChanged;
+            this.ProcessConversation(e.Conversation);
+        }
+
+        private void ProcessConversation(mslm.Conversation.Conversation c)
+        {
+            var participants = c.Participants.Where(i => !i.IsSelf);
+
+            var participant = participants.FirstOrDefault();
+            this.currentIcomingUri = participant.Contact.Uri;
+            Console.WriteLine("incoming uri: {0}".xFormat(this.currentIcomingUri));
+            string inuri = this.IncomingUri(c.Participants);
+            string guid = Guid.NewGuid().ToString();
+            string telnum = this.currentIcomingUri.Replace("tel:", "");
+            // this.FireEvent("Ringing", "Inbound", telnum, this.tenfoldExt, guid);
+        }
 
 
-      private void ProcessConversation(mslm.Conversation.Conversation c)
-      {
-         mslm.Conversation.Participant p = c.Participants.Single(i => !i.IsSelf);
-         this.currentIcomingUri = p.Contact.Uri;
-         Console.WriteLine("incoming uri: {0}".xFormat(this.currentIcomingUri));
-         string inuri = this.IncomingUri(c.Participants);
-         string guid = Guid.NewGuid().ToString();
-         string telnum = this.currentIcomingUri.Replace("tel:", "");
-         this.FireEvent("Ringing", "Inbound", telnum, this.tenfoldExt, guid);
-      }
+        private void Conversation_PropertyChanged(object sender,
+           mslm.Conversation.ConversationPropertyChangedEventArgs e)
+        {
+            Console.WriteLine("\n--- Conversation_PropertyChanged ---");
+            mslm.Conversation.Conversation c = (mslm.Conversation.Conversation)sender;
 
-      private void Conversation_PropertyChanged(object sender,
-         mslm.Conversation.ConversationPropertyChangedEventArgs e)
-      {
-         Console.WriteLine("\n--- Conversation_PropertyChanged ---");
-         mslm.Conversation.Conversation c = (mslm.Conversation.Conversation)sender;
-         string msg = "p: {0}  /  v: {1} / s: {2}".xFormat(e.Property.ToString(), e.Value?.ToString(), c.State.ToString());
-         this.eventBag.Add(msg);
-         Console.WriteLine(msg);
-         /* - - */
-         /* inviter is self here */
-         if (e.Property.ToString().Contains("Inviter"))
-         {
-            mslm.Contact contact = (e.Value as mslm.Contact);
-            Console.WriteLine(" -> InviterUri: {0}".xFormat(contact.Uri));
-         }
-      }
-
-      public string FireEvent(string eStatus, string eDirection, string callingNum, string tenfoldExt, string pbxID)
-      {
-         string responseText = null;
-         try
-         {
-            /* - "Inbound" - */
-            /* '{{"status": "{0}", "direction": "{1}", "number": "{2}", "extension": "{3}", "pbxCallId": "{4}"}}' */
-            string jbuff = this.eventTemplate.xFormat(eStatus, eDirection, callingNum, tenfoldExt, pbxID);
-            byte[] bytes = jbuff.xToBytes();
-            string eventurl = this.eventSinkUrl.xFormat(this.orgID);
-            WebRequest webRequest = (HttpWebRequest)WebRequest.Create(eventurl);
-            webRequest.Method = "post";
-            webRequest.ContentType = "application/json";
-            webRequest.ContentLength = bytes.LongLength;
-            webRequest.GetRequestStream().Write(bytes, 0, bytes.Length);
-            //webRequest.GetRequestStream().Flush();
-            webRequest.GetRequestStream().Close();
-            HttpWebResponse webResponse = (HttpWebResponse)webRequest.GetResponse();
-            responseText = new StreamReader(webResponse.GetResponseStream()).ReadToEnd();
-            webResponse.Close();
-         }
-         catch (Exception x)
-         {
-            AppLogger.Save(x);
-            responseText = "ERROR";
-         }
-
-         /* - - */
-         return responseText;
-
-      }
-
-      private void SetUserNameUserSIP(mslm.Conversation.Conversation c)
-      {
-         mslm.Conversation.ParticipantProperty name = mslm.Conversation.ParticipantProperty.Name;
-         this.currentUserName = (string)c.SelfParticipant.Properties[name];
-         this.currentUserSIP = c.SelfParticipant.Contact.Uri;
-      }
-
-      public mslm.LyncClient SkypeObject
-      {
-         get { return this.lyncClient; }
-      }
-
-      private string IncomingUri(IList<mslm.Conversation.Participant> participants)
-      {
-         foreach (mslm.Conversation.Participant p in participants)
-         {
-            Console.WriteLine(p.Contact.Uri);
-         }
-         return "";
-      }
-
-      public string Hangup(string num = null)
-      {
-         num = num ?? "CurrentConversation";
-         this.UpdateStatusFile(0, "n/m", "Hangup", num);
-         /* wierd it seems there are multiple convs */
-         for (int i = 0; i < this.lyncClient.ConversationManager.Conversations.Count; i++)
-         {
-            mslm.Conversation.Conversation c = this.lyncClient.ConversationManager.Conversations[i];
-            if (c != null)
+            /* - - */
+            /* inviter is self here */
+            if (e.Property.ToString().Contains("Inviter"))
             {
-               c.End();
+                mslm.Contact contact = (e.Value as mslm.Contact);
+                Console.WriteLine(" -> InviterUri: {0}".xFormat(contact.Uri));
             }
-         }
+        }
 
-         num = num ?? this.currentIcomingUri;
-         return this.FireEvent("Hangup", "Inbound", num, this.tenfoldExt, Guid.NewGuid().ToString());
+        private void SetUserNameUserSIP(mslm.Conversation.Conversation c)
+        {
+            mslm.Conversation.ParticipantProperty name = mslm.Conversation.ParticipantProperty.Name;
+            this.currentUserName = (string)c.SelfParticipant.Properties[name];
+            this.currentUserSIP = c.SelfParticipant.Contact.Uri;
+        }
 
-      }
-
-      public string Pickup()
-      {
-         try
-         {
-            for (int i = 0; i < this.lyncClient.ConversationManager.Conversations.Count; i++)
+        /// <summary>
+        /// Terminate the call
+        /// </summary>
+        /// <param name="num"></param>
+        public void Hangup(string num = null)
+        {
+            conversations = this.lyncClient.ConversationManager.Conversations;
+            num = num ?? "CurrentConversation";
+            this.UpdateStatusFile(0, "n/m", "Hangup", num);
+            /* wierd it seems there are multiple convs */
+            for (int i = 0; i < conversations.Count; i++)
             {
-               mslm.Conversation.Conversation c = this.lyncClient.ConversationManager.Conversations[i];
-               if (c != null)
-               {
-                  Console.WriteLine("state: {0}".xFormat(c.State.ToString()));
-                  switch (c.State)
-                  {
-                     case mslm.Conversation.ConversationState.Inactive:
-                        c.AddParticipant(c.SelfParticipant.Contact);
-                        break;
-                     case mslm.Conversation.ConversationState.Active:
-                        c.AddParticipant(c.SelfParticipant.Contact);
-                        //c.AddParticipant(c.SelfParticipant.Contact.CreateContactEndpoint())
-                        break;
-                     default:
-                        break;
-                  }
-               }
+                mslm.Conversation.Conversation c = conversations[i];
+                if (c != null)
+                {
+                    c.End();
+                }
             }
-         }
-         catch (Exception x)
-         {
-            /* {"Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))"} */
-            Debug.WriteLine(x.ToString());
-         }
+            num = num ?? this.currentIcomingUri;
+            //return this.FireEvent("Hangup", "Inbound", num, this.tenfoldExt, Guid.NewGuid().ToString());
 
-         return "";
+        }
 
-      }
+        /// <summary>
+        /// Mute user side of the conversation
+        /// </summary>
+        public void MuteSelf()
+        {
 
-      public void Dial(string uri)
-      {
-         this.UpdateStatusFile(0, "n/m", "Dial", uri);
-         Console.WriteLine("\tdialing: {0}".xFormat(uri));
-         /* switch modes */
-         this.lyncClient.ConversationManager.ConversationAdded -= this.IncomingConversationAdded;
-         this.lyncClient.ConversationManager.ConversationAdded += this.OutgoingConversationAdded;
-         mslm.Conversation.Conversation conv = this.lyncClient.ConversationManager.AddConversation();
+            conversations = this.lyncClient.ConversationManager.Conversations;
 
-      }
-
-      private void OutgoingConversationAdded(object sender, mslm.Conversation.ConversationManagerEventArgs e)
-      {
-         this.UpdateStatusFile(0, "n/m", "OutgoingConversationAdded", "");
-         //Conversation originated with remote SIP user
-         if (e.Conversation.Modalities[mslm.Conversation.ModalityTypes.AudioVideo].State != mslm.Conversation.ModalityState.Notified)
-         {
-            if (e.Conversation.CanInvoke(mslm.Conversation.ConversationAction.AddParticipant))
+            try
             {
-               e.Conversation.ParticipantAdded += OutgoingConversation_ParticipantAdded;
-               //e.Conversation.AddParticipant(_LyncClient.ContactManager.GetContactByUri("bob@contoso.com"));
+                if (conversations.Count != 0)
+                {
+                    for (int i = 0; i < conversations.Count; i++)
+                    {
+                        mslm.Conversation.Conversation c = conversations[i];
+                        mslm.Conversation.Participant p = c.Participants.Single(k => k.IsSelf);
+
+                        if (p != null && !p.IsMuted)
+                        {
+                            p.BeginSetMute(true, null, null);
+                        }
+
+                        else if (p != null && p.IsMuted)
+                        {
+                            p.BeginSetMute(false, null, null);
+                        }
+                    }
+                }
             }
-         }
-      }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
 
-      private void OutgoingConversation_ParticipantAdded(object sender,
-         mslm.Conversation.ParticipantCollectionChangedEventArgs e)
-      {
-         Console.WriteLine("OutgoingConversation_ParticipantAdded");
-         this.lyncClient.ConversationManager.ConversationAdded -= this.OutgoingConversationAdded;
-         this.lyncClient.ConversationManager.ConversationAdded += this.IncomingConversationAdded;
-      }
+        /// <summary>
+        /// Accept the incoming ('ringing') conversation
+        /// </summary>
+        /// <returns></returns>
+        public string Answer()
+        {
+            conversations = this.lyncClient.ConversationManager.Conversations;
+            try
+            {
+                for (int i = 0; i < conversations.Count; i++)
+                {
+                    mslm.Conversation.Conversation c = conversations[i];
+                    if (c != null)
+                    {
+                        c.Modalities[mslm.Conversation.ModalityTypes.AudioVideo].Accept();
+                    }
+                }
+            }
+            catch (Exception x)
+            {
+                Debug.WriteLine(x.ToString());
+            }
 
-      /* {{"dts": "{0}", "errorCode": "{1}", "errorMsg": "{2}", "eventId": "{3}", "eventMsg": "{4}"}} */
-      public void UpdateStatusFile(int erCode, string erMsg, string evId, string evMsg)
-      {
-         string dts = DateTime.UtcNow.ToString("yyyy/MM/d HH:mm:ss.ms");
-         string jsonbuff = this.statusFileTemplate.xFormat(dts, erCode.ToString(), erMsg, evId, evMsg);
-         using (StreamWriter sw = new StreamWriter(this.statusFile, false))
-            sw.WriteLine(jsonbuff);
-      }
-   }
+            return "";
+        }
+
+        /// <summary>
+        /// Dial to a live US number via Skype
+        /// </summary>
+        /// <param name="uri"></param>
+        public void MakeCall(string uri)
+        {
+            //hardcoded for test purposes
+            uri = "tel:+13475147298";
+            List<string> participant = new List<string>();
+            participant.Add(uri);
+            Console.WriteLine("\tdialing: {0}".xFormat(uri));
+            var automation = mslm.LyncClient.GetAutomation();
+            automation.BeginStartConversation(AutomationModalities.Audio, participant, null, null, automation);
+
+        }
+
+        /// <summary>
+        /// Hold and Retrieve the on hold conversation
+        /// </summary>
+        public void Hold()
+        {
+            conversations = this.lyncClient.ConversationManager.Conversations;
+
+            for (int i = 0; i < conversations.Count; i++)
+            {
+                mslm.Conversation.Conversation c = conversations[i];
+                if (c != null)
+                {
+                    if (c.Modalities[ModalityTypes.AudioVideo].State == ModalityState.OnHold)
+                    {
+                        object[] asyncState = { c.Modalities[ModalityTypes.AudioVideo], "RETRIEVE" };
+                        c.Modalities[ModalityTypes.AudioVideo].BeginRetrieve(null, asyncState);
+                    }
+
+                    else if (c.Modalities[ModalityTypes.AudioVideo].State == ModalityState.Connected)
+                    {
+                        object[] asyncState = { c.Modalities[ModalityTypes.AudioVideo], "HOLD" };
+                        c.Modalities[ModalityTypes.AudioVideo].BeginHold(null, asyncState);
+                    }
+                }
+            }
+
+        }
+
+        public void UpdateStatusFile(int erCode, string erMsg, string evId, string evMsg)
+        {
+            string dts = DateTime.UtcNow.ToString("yyyy/MM/d HH:mm:ss.ms");
+            string jsonbuff = this.statusFileTemplate.xFormat(dts, erCode.ToString(), erMsg, evId, evMsg);
+            using (StreamWriter sw = new StreamWriter(this.statusFile, false))
+                sw.WriteLine(jsonbuff);
+        }
+
+        public mslm.LyncClient SkypeObject
+        {
+            get { return this.lyncClient; }
+        }
+
+        private string IncomingUri(IList<mslm.Conversation.Participant> participants)
+        {
+            foreach (mslm.Conversation.Participant p in participants)
+            {
+                Console.WriteLine(p.Contact.Uri);
+            }
+            return "";
+        }
+    }
 }
