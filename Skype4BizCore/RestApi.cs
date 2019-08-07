@@ -14,7 +14,7 @@ namespace Skype4BizCore
 {
    public class RestApi
    {
-
+        // sth
       private HttpListener httpListener = null;
       private string httpPrefix = null;
       private mslm.LyncClient lyncClient = null;
