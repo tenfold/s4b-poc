@@ -61,6 +61,11 @@ namespace Skype4BizCore
                 buffout = this.actAnswer();
             }
 
+            else if (cntx.Request.RawUrl.Contains("/act/transfer"))
+            {
+                buffout = this.actTransfer();
+            }
+
             else if (cntx.Request.RawUrl.Contains("/act/makecall"))
             {
                 buffout = this.actMakeCall(cntx.Request.RawUrl);
@@ -101,6 +106,12 @@ namespace Skype4BizCore
         private string actAnswer()
         {
             this.skypeSniffer.Answer();
+            return "OK";
+        }
+
+        private string actTransfer()
+        {
+            this.skypeSniffer.Transfer();
             return "OK";
         }
         private string actHold()

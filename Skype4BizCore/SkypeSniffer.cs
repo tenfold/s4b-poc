@@ -16,6 +16,8 @@ using mslm = Microsoft.Lync.Model;
 using SysCore;
 using Microsoft.Lync.Model.Extensibility;
 using Microsoft.Lync.Model.Conversation;
+using Microsoft.Lync.Model.Conversation.AudioVideo;
+using Microsoft.Lync.Model;
 
 namespace Skype4BizCore
 {
@@ -254,6 +256,45 @@ namespace Skype4BizCore
                         object[] asyncState = { c.Modalities[ModalityTypes.AudioVideo], "HOLD" };
                         c.Modalities[ModalityTypes.AudioVideo].BeginHold(null, asyncState);
                     }
+                }
+            }
+
+        }
+        /// <summary>
+        /// Make Cold transfer of a conversation
+        /// </summary>
+        public void Transfer()
+        {
+            conversations = this.lyncClient.ConversationManager.Conversations;
+            if (conversations == null)
+                return;
+
+            for (int i = 0; i < conversations.Count; i++)
+            {
+                // Hardcoded for test purposes
+                string targetURI = "tel:+15125965812";
+                TransferOptions transferOptions = 0;
+                mslm.Conversation.Conversation c = conversations[i];
+                mslm.Conversation.Participant p = c.Participants.Single(k => !k.IsSelf);
+                Contact contact = this.lyncClient.ContactManager.GetContactByUri(targetURI);
+
+
+                if (c.Modalities[ModalityTypes.AudioVideo].CanInvoke(ModalityAction.ConsultAndTransfer))
+                {
+
+                    List<string> _context = new List<string>();
+                    Object[] asyncState = { ModalityState.Transferring, _context, c.Modalities[ModalityTypes.AudioVideo] };
+
+                    c.Modalities[ModalityTypes.AudioVideo].BeginTransfer(contact, transferOptions, myar =>
+                    {
+
+                        Object[] _asyncState = (Object[])myar.AsyncState;
+                        ModalityState ms = (ModalityState)_asyncState[0];
+                        IList<string> _contextProperties = (List<string>)_asyncState[1];
+
+                        c.Modalities[ModalityTypes.AudioVideo].EndTransfer(out ms, out _contextProperties, myar);
+
+                    }, asyncState);
                 }
             }
 
