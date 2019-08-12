@@ -70,10 +70,12 @@ namespace Skype4BizCore
       {
          try
          {
-            /* attach to skype */
-            this.lyncClient = mslm.LyncClient.GetClient();
-            this.lyncClient.ConversationManager.ConversationAdded += this.IncomingConversationAdded;
-         }
+                this.lyncClient = mslm.LyncClient.GetClient();
+                //TODO:Further investigation for creating multiple conversations issue 
+                this.lyncClient.ConversationManager.ConversationAdded -= this.IncomingConversationAdded;
+                this.lyncClient.ConversationManager.ConversationAdded += this.IncomingConversationAdded;
+                this.lyncClient.Self.Contact.ContactInformationChanged += this.Self_ContactInformationChanged;
+            }
          catch (Exception x)
          {
             AppLogger.Save(x);
@@ -93,6 +95,8 @@ namespace Skype4BizCore
             this.UpdateStatusFile(0, "n/m", "IncomingConversationAdded", "n/m");
 
             /* monitor conv prop changes */
+            //TODO:Further investigation for creating multiple conversations issue 
+            e.Conversation.PropertyChanged -= this.Conversation_PropertyChanged;
             e.Conversation.PropertyChanged += this.Conversation_PropertyChanged;
             this.ProcessConversation(e.Conversation);
         }
@@ -123,6 +127,30 @@ namespace Skype4BizCore
             {
                 mslm.Contact contact = (e.Value as mslm.Contact);
                 Console.WriteLine(" -> InviterUri: {0}".xFormat(contact.Uri));
+            }
+        }
+
+        /// <summary>
+        /// Event handler to listen for changes in user availability(status)
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        void Self_ContactInformationChanged(object sender, ContactInformationChangedEventArgs e)
+        {
+
+            if (this.lyncClient.State == ClientState.SigningOut || this.lyncClient.State == ClientState.SignedOut || this.lyncClient.State == ClientState.SigningIn)
+            {
+                return;
+            }
+
+            Contact self = sender as Contact;
+
+            if (e.ChangedContactInformation.Contains(ContactInformationType.Availability))
+            {
+                ContactAvailability availability = (ContactAvailability)self.GetContactInformation(ContactInformationType.Availability);
+
+                string activity = (string)self.GetContactInformation(ContactInformationType.Activity);
+
             }
         }
 
@@ -298,6 +326,114 @@ namespace Skype4BizCore
                 }
             }
 
+        }
+
+        public void WarmTransfer()
+        {
+            conversations = this.lyncClient.ConversationManager.Conversations;
+            if (conversations == null)
+                return;
+
+            mslm.Conversation.Conversation onHoldConv = conversations.Where(k => k.Modalities[ModalityTypes.AudioVideo].State == ModalityState.OnHold).FirstOrDefault();
+            mslm.Conversation.Conversation consultConv = conversations.Where(k => k.Modalities[ModalityTypes.AudioVideo].State == ModalityState.Connected).FirstOrDefault();
+
+            if (onHoldConv.Modalities[ModalityTypes.AudioVideo].CanInvoke(ModalityAction.ConsultAndTransfer))
+            {
+
+                List<string> _context = new List<string>();
+                Object[] asyncState = { ModalityState.Transferring, _context, onHoldConv.Modalities[ModalityTypes.AudioVideo] };
+                TransferOptions transferOptions = 0;
+
+                onHoldConv.Modalities[ModalityTypes.AudioVideo].BeginConsultativeTransfer(consultConv, transferOptions, myar =>
+                {
+                    Object[] _asyncState = (Object[])myar.AsyncState;
+                    ModalityState ms = (ModalityState)_asyncState[0];
+                    IList<string> _contextProperties = (List<string>)_asyncState[1];
+
+                    consultConv.Modalities[ModalityTypes.AudioVideo].EndConsultativeTransfer(out ms, out _contextProperties, myar);
+
+                }, asyncState);
+            }
+
+        }
+
+        /// <summary>
+        /// Opens conference window with the user as the only participant
+        /// </summary>
+        public void StartConference()
+        {
+
+            var automation = mslm.LyncClient.GetAutomation();
+            automation.BeginMeetNow(mymeet =>
+            {
+                automation.EndMeetNow(mymeet);
+            }, null);
+
+        }
+
+        /// <summary>
+        /// Adds participant through the sip address
+        /// </summary>
+        public void AddConferenceParticipant()
+        {
+            conversations = this.lyncClient.ConversationManager.Conversations;
+            if (conversations == null)
+                return;
+            for (int i = 0; i < conversations.Count; i++)
+            {
+                mslm.Conversation.Conversation c = conversations[i];
+                //hardcoded for testing purposes
+                string sip = "sip:eowsiak@tenfoldinc.onmicrosoft.com";
+                Contact contact = this.lyncClient.ContactManager.GetContactByUri(sip);
+                c.AddParticipant(contact);
+            }
+
+        }
+
+        /// <summary>
+        /// Changes the avalability status on S4B
+        /// </summary>
+        /// <param name="status"></param>
+        public void SetUserAvailability(string status)
+        {
+            var newStatus = ContactAvailability.None;
+
+            switch (status)
+            {
+                case "1":
+                    newStatus = ContactAvailability.Away;
+                    break;
+                case "2":
+                    newStatus = ContactAvailability.Busy;
+                    break;
+                case "3":
+                    newStatus = ContactAvailability.DoNotDisturb;
+                    break;
+                case "4":
+                    newStatus = ContactAvailability.Free;
+                    break;
+                case "5":
+                    newStatus = ContactAvailability.TemporarilyAway;
+                    break;
+                case "6":
+                    newStatus = ContactAvailability.FreeIdle;
+                    break;
+                case "7":
+                    newStatus = ContactAvailability.BusyIdle;
+                    break;
+
+                default:
+                    newStatus = ContactAvailability.None;
+                    break;
+            }
+
+            if (newStatus != ContactAvailability.None)
+            {
+                this.lyncClient.Self.BeginPublishContactInformation(
+            new Dictionary<PublishableContactInformationType, object>() {
+                { PublishableContactInformationType.Availability, newStatus }
+            }, null, null);
+            }
         }
 
         public void UpdateStatusFile(int erCode, string erMsg, string evId, string evMsg)

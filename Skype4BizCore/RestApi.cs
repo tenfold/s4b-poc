@@ -76,6 +76,27 @@ namespace Skype4BizCore
                 buffout = this.actHold();
             }
 
+            else if (cntx.Request.RawUrl.Contains("/act/startmeet"))
+            {
+                buffout = this.actStartConference();
+            }
+
+            else if (cntx.Request.RawUrl.Contains("/act/addparticipant"))
+            {
+                buffout = this.actAddParticipant();
+            }
+
+            else if (cntx.Request.RawUrl.Contains("/act/warmtransfer"))
+            {
+                buffout = this.actWarmTransfer();
+            }
+
+            else if (cntx.Request.RawUrl.Contains("/act/changestatus"))
+            {
+                string status = cntx.Request.RawUrl.Substring(cntx.Request.RawUrl.Length - 1);
+                buffout = this.actChangeStatus(status);
+            }
+
             else
             {
                 buffout = "Error!!!";
@@ -117,6 +138,29 @@ namespace Skype4BizCore
         private string actHold()
         {
             this.skypeSniffer.Hold();
+            return "OK";
+        }
+
+        private string actStartConference()
+        {
+            this.skypeSniffer.StartConference();
+            return "OK";
+        }
+
+        private string actAddParticipant()
+        {
+            this.skypeSniffer.AddConferenceParticipant();
+            return "OK";
+        }
+
+        private string actChangeStatus(string status)
+        {
+            this.skypeSniffer.SetUserAvailability(status);
+            return "OK";
+        }
+        private string actWarmTransfer()
+        {
+            this.skypeSniffer.WarmTransfer();
             return "OK";
         }
 
