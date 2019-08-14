@@ -104,14 +104,16 @@ namespace Skype4BizCore
         private void ProcessConversation(mslm.Conversation.Conversation c)
         {
             var participants = c.Participants.Where(i => !i.IsSelf);
-
             var participant = participants.FirstOrDefault();
-            this.currentIcomingUri = participant.Contact.Uri;
-            Console.WriteLine("incoming uri: {0}".xFormat(this.currentIcomingUri));
-            string inuri = this.IncomingUri(c.Participants);
-            string guid = Guid.NewGuid().ToString();
-            string telnum = this.currentIcomingUri.Replace("tel:", "");
-            // this.FireEvent("Ringing", "Inbound", telnum, this.tenfoldExt, guid);
+            if (participant !=null)
+            {
+                this.currentIcomingUri = participant.Contact.Uri;
+                Console.WriteLine("incoming uri: {0}".xFormat(this.currentIcomingUri));
+                string inuri = this.IncomingUri(c.Participants);
+                string guid = Guid.NewGuid().ToString();
+                string telnum = this.currentIcomingUri.Replace("tel:", "");
+                // this.FireEvent("Ringing", "Inbound", telnum, this.tenfoldExt, guid);
+            }
         }
 
 
@@ -189,7 +191,6 @@ namespace Skype4BizCore
         /// </summary>
         public void MuteSelf()
         {
-
             conversations = this.lyncClient.ConversationManager.Conversations;
 
             try
@@ -362,13 +363,11 @@ namespace Skype4BizCore
         /// </summary>
         public void StartConference()
         {
-
             var automation = mslm.LyncClient.GetAutomation();
             automation.BeginMeetNow(mymeet =>
             {
                 automation.EndMeetNow(mymeet);
             }, null);
-
         }
 
         /// <summary>
@@ -387,7 +386,6 @@ namespace Skype4BizCore
                 Contact contact = this.lyncClient.ContactManager.GetContactByUri(sip);
                 c.AddParticipant(contact);
             }
-
         }
 
         /// <summary>
